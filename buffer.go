@@ -10,7 +10,7 @@ const (
 
 type KV struct {
 	Key   string
-	Value []byte
+	Value int
 }
 
 type buffer []KV
