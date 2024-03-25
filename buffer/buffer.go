@@ -2,11 +2,6 @@ package buffer
 
 import (
 	"sync"
-	"time"
-)
-
-const (
-	timeout = 100 // milliseconds
 )
 
 type KV struct {
@@ -27,11 +22,17 @@ type DualBuffer struct {
 
 	wg sync.WaitGroup
 
+	timeout int // timeout in milliseconds
+
 	// callback function to execute when buffer is full
 	execFunc func(*Buffer) error
 }
 
-func NewDualBuffer(bufferSize uint, execFunc func(*Buffer) error) *DualBuffer {
+func NewDualBuffer(
+	bufferSize uint,
+	execFunc func(*Buffer) error,
+	timeout int,
+) *DualBuffer {
 	b1 := make(Buffer, bufferSize)
 	b2 := make(Buffer, bufferSize)
 	db := &DualBuffer{
@@ -41,6 +42,7 @@ func NewDualBuffer(bufferSize uint, execFunc func(*Buffer) error) *DualBuffer {
 		currentIndex: 0,
 		execFunc:     execFunc,
 		bufferSize:   bufferSize,
+		timeout:      timeout,
 	}
 	db.currentBuffer = &db.buffer1
 	go db.timeoutProcess()
@@ -52,7 +54,6 @@ func (d *DualBuffer) Write(kv *KV) error {
 		d.wg.Wait()
 		d.wg.Add(1)
 		go d.ProcessBuffer(d.currentBuffer)
-		// swap buffers
 		if d.currentBuffer == &d.buffer1 {
 			d.currentBuffer = &d.buffer2
 		} else {
@@ -63,32 +64,29 @@ func (d *DualBuffer) Write(kv *KV) error {
 
 	(*d.currentBuffer)[d.currentIndex] = *kv
 	d.currentIndex++
-
 	return nil
 }
 
 func (d *DualBuffer) timeoutProcess() {
-	ticker := time.NewTicker(timeout * time.Millisecond)
-	for {
-		<-ticker.C
-		if d.currentIndex > 0 {
-			d.wg.Wait()
-			d.wg.Add(1)
-			go d.ProcessBuffer(d.currentBuffer)
-			if d.currentBuffer == &d.buffer1 {
-				d.currentBuffer = &d.buffer2
-			} else {
-				d.currentBuffer = &d.buffer1
-			}
-			d.currentIndex = 0
-		}
-	}
+	// ticker := time.NewTicker(time.Duration(d.timeout) * time.Millisecond)
+	// for {
+	// 	<-ticker.C
+	// 	if d.currentIndex > 0 {
+	// 		d.wg.Wait()
+	// 		d.wg.Add(1)
+	// 		go d.ProcessBuffer(d.currentBuffer)
+	// 		if d.currentBuffer == &d.buffer1 {
+	// 			d.currentBuffer = &d.buffer2
+	// 		} else {
+	// 			d.currentBuffer = &d.buffer1
+	// 		}
+	// 		d.currentIndex = 0
+	// 	}
+	// }
 }
 
 func (d *DualBuffer) ProcessBuffer(buffer *Buffer) error {
-	// process buffer
 	err := d.execFunc(buffer)
-	// clear buffer
 	for i := 0; i < int(d.bufferSize); i++ {
 		(*buffer)[i] = KV{}
 	}

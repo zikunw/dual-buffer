@@ -14,7 +14,7 @@ func TestDualBuffer(t *testing.T) {
 			outputChan <- kv
 		}
 		return nil
-	})
+	}, 200)
 
 	kv := buffer.KV{}
 	for i := 0; i < numValues; i++ {
@@ -35,4 +35,17 @@ func TestDualBuffer(t *testing.T) {
 	}
 
 	close(outputChan)
+}
+
+func BenchmarkDualBuffer(b *testing.B) {
+	db := buffer.NewDualBuffer(1_000_000, func(b *buffer.Buffer) error {
+		return nil
+	}, 100)
+	kv := buffer.KV{
+		Key:   "key",
+		Value: 0,
+	}
+	for i := 0; i < b.N; i++ {
+		db.Write(&kv)
+	}
 }
